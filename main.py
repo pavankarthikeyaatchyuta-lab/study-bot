@@ -13,9 +13,6 @@ app = FastAPI()
 # Load API key from environment (works locally + Render)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY is not set in environment variables")
-
 # Use supported Groq model
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
@@ -52,7 +49,11 @@ User: {request.message}
 Bot:
 """
 
-    response = llm.invoke(full_prompt).content
+    try:
+        response = llm.invoke(full_prompt).content
+    except Exception as e:
+        # Return the real error instead of 500
+        return {"error": str(e)}
 
     chats_collection.insert_one({
         "user_id": request.user_id,
