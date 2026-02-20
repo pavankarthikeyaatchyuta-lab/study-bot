@@ -10,8 +10,17 @@ load_dotenv()
 
 app = FastAPI()
 
-# Use supported Groq model (old llama3-8b-8192 is decommissioned)
-llm = ChatGroq(model="llama-3.1-8b-instant")
+# Load API key from environment (works locally + Render)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY is not set in environment variables")
+
+# Use supported Groq model
+llm = ChatGroq(
+    model="llama-3.1-8b-instant",
+    api_key=GROQ_API_KEY
+)
 
 class ChatRequest(BaseModel):
     user_id: str
