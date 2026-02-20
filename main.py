@@ -13,7 +13,7 @@ app = FastAPI()
 # Load API key from environment (works locally + Render)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Use supported Groq model
+# Initialize LLM (Render-safe)
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     api_key=GROQ_API_KEY
@@ -24,6 +24,8 @@ class ChatRequest(BaseModel):
     message: str
 
 def get_chat_history(user_id: str):
+    if not chats_collection:
+        return ""
     history = chats_collection.find({"user_id": user_id}).sort("timestamp", 1)
     chat_text = ""
     for chat in history:
@@ -32,7 +34,11 @@ def get_chat_history(user_id: str):
 
 @app.post("/chat")
 def chat(request: ChatRequest):
-    history = get_chat_history(request.user_id)
+    # Get history safely
+    try:
+        history = get_chat_history(request.user_id)
+    except Exception:
+        history = ""
 
     system_prompt = (
         "You are a helpful AI Study Assistant. "
@@ -49,17 +55,22 @@ User: {request.message}
 Bot:
 """
 
+    # Call Groq safely
     try:
         response = llm.invoke(full_prompt).content
     except Exception as e:
-        # Return the real error instead of 500
-        return {"error": str(e)}
+        return {"error": f"Groq error: {str(e)}"}
 
-    chats_collection.insert_one({
-        "user_id": request.user_id,
-        "user_message": request.message,
-        "bot_response": response,
-        "timestamp": datetime.utcnow()
-    })
+    # Store in DB safely
+    try:
+        if chats_collection:
+            chats_collection.insert_one({
+                "user_id": request.user_id,
+                "user_message": request.message,
+                "bot_response": response,
+                "timestamp": datetime.utcnow()
+            })
+    except Exception:
+        pass
 
     return {"response": response}
